@@ -55,7 +55,27 @@ Form for source, dest, mode, dry-run/execute toggle, and SSH/network options. Ru
 
 ### `ModuleNotFoundError: No module named '_tkinter'`?
 
-Your Python was built without Tk. `gui.py` prints remediation steps when this happens — quickest fix on macOS is `/usr/bin/python3 gui.py` (the system Python ships with Tk). For pyenv, `brew install tcl-tk` then rebuild with the right `PYTHON_CONFIGURE_OPTS`. On Linux, install your distro's `python3-tk` package.
+Your Python was built without Tk. `gui.py` prints remediation steps when this happens.
+
+**Quick fix on macOS:** `/usr/bin/python3 gui.py` — the system Python ships with Tk.
+
+**Proper fix for pyenv on macOS** (rebuild Python with Tk linked in):
+
+```bash
+brew install tcl-tk
+TCLTK="$(brew --prefix tcl-tk)"
+PKG_CONFIG_PATH="${TCLTK}/lib/pkgconfig:${PKG_CONFIG_PATH}" \
+  CPPFLAGS="-I${TCLTK}/include/tcl-tk" \
+  LDFLAGS="-L${TCLTK}/lib" \
+  PYTHON_CONFIGURE_OPTS="--enable-shared" \
+  pyenv install -f 3.13.7   # or whatever version you use
+```
+
+The pkg-config route is what actually works. Don't try `PYTHON_CONFIGURE_OPTS="--with-tcltk-includes='...' --with-tcltk-libs='...'"` — `python-build` does plain variable expansion (not `eval`), so the inner quotes don't survive and configure rejects the value. With `PKG_CONFIG_PATH` set, configure's own pkg-config probe finds tcl/tk and builds the link line itself.
+
+`pyenv install -f` wipes site-packages. Snapshot first: `pip freeze > pkgs.txt`, then after rebuild: `pip install -r pkgs.txt`.
+
+**Linux:** install your distro's `python3-tk` (`apt`), `python3-tkinter` (`dnf`), or `tk` (`pacman`) package — no rebuild needed.
 
 ## Logs
 

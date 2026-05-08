@@ -25,12 +25,17 @@ except ImportError as _e:
         f"error: this Python ({sys.executable}) was built without Tk support: {_e}\n"
         "\n"
         "Fixes:\n"
-        "  • macOS: run with system Python — `/usr/bin/python3 gui.py`\n"
-        "  • pyenv: install Tk first, then rebuild Python:\n"
+        "  • macOS quick: run with system Python — `/usr/bin/python3 gui.py`\n"
+        "  • macOS pyenv (proper fix — rebuild Python against Homebrew tcl-tk):\n"
         "      brew install tcl-tk\n"
-        '      env PYTHON_CONFIGURE_OPTS="--with-tcltk-includes=\'-I/opt/homebrew/opt/tcl-tk/include\' '
-        "--with-tcltk-libs='-L/opt/homebrew/opt/tcl-tk/lib -ltcl9.0 -ltk9.0'\" "
-        "pyenv install -f 3.13.7\n"
+        '      TCLTK="$(brew --prefix tcl-tk)"\n'
+        '      PKG_CONFIG_PATH="${TCLTK}/lib/pkgconfig:${PKG_CONFIG_PATH}" \\\n'
+        '        CPPFLAGS="-I${TCLTK}/include/tcl-tk" \\\n'
+        '        LDFLAGS="-L${TCLTK}/lib" \\\n'
+        '        PYTHON_CONFIGURE_OPTS="--enable-shared" \\\n'
+        "        pyenv install -f <your-version>\n"
+        "    (Don't try to pass --with-tcltk-includes/libs through PYTHON_CONFIGURE_OPTS;\n"
+        "     python-build doesn't eval the value, so embedded quotes/spaces break.)\n"
         "  • Linux (Debian/Ubuntu): sudo apt install python3-tk\n"
         "  • Linux (Fedora):       sudo dnf install python3-tkinter\n"
         "  • Linux (Arch):         sudo pacman -S tk\n"
