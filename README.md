@@ -53,6 +53,10 @@ Endpoints can be local paths, `[user@]host:/path` (SSH), or `rsync://...` (rsync
 
 Form for source, dest, mode, dry-run/execute toggle, and SSH/network options. Run streams rsync output line-by-line into a log pane. Cancel sends `SIGTERM` to the process group so the child rsync dies cleanly.
 
+### `ModuleNotFoundError: No module named '_tkinter'`?
+
+Your Python was built without Tk. `gui.py` prints remediation steps when this happens — quickest fix on macOS is `/usr/bin/python3 gui.py` (the system Python ships with Tk). For pyenv, `brew install tcl-tk` then rebuild with the right `PYTHON_CONFIGURE_OPTS`. On Linux, install your distro's `python3-tk` package.
+
 ## Logs
 
 Per-platform default:
