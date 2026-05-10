@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`sync.py` — a stdlib-only Python rsync wrapper. `gui.py` — a stdlib-only tkinter front-end that subprocesses `sync.py`. `tests/test_naming.py` — end-to-end naming-robustness tests.
+`sync.py` — a stdlib-only Python rsync wrapper. `compare.py` — a stdlib-only read-only directory comparator built on `rsync --dry-run --itemize-changes`. `gui.py` — a stdlib-only tkinter front-end that subprocesses `sync.py`. `tests/test_naming.py` — end-to-end naming-robustness tests.
 
 Three sync modes:
 - `mirror` — source → dest with `--delete` (dest becomes exact copy)
@@ -21,6 +21,9 @@ Dry-run is the default; `--execute` is required to actually transfer.
 ./sync.py SRC DST --mode {mirror,additive,two-way}        # dry-run
 ./sync.py SRC DST --mode mirror --execute                 # transfer
 ./sync.py user@host:/data ./local --mode additive --ssh-port 2222 --ssh-key ~/.ssh/id_ed25519
+./sync.py ./Photos user@nas:/volume1/photos --mode mirror --execute \
+        --no-perms --nas-excludes --modify-window 1       # NAS-safe sync
+./compare.py SRC DST [--checksum] [--nas-excludes]        # read-only diff
 ./gui.py                                                  # launch GUI
 python3 tests/test_naming.py                              # run tests
 ```
@@ -35,6 +38,11 @@ Default log: `~/Library/Logs/sync_folders/sync.log` on macOS, `$XDG_STATE_HOME/s
 - Output decoding: `subprocess.Popen` uses `errors="replace"`. Apple's stock rsync (2.6.9) emits non-UTF-8 bytes for filenames with emoji/CJK; without this the wrapper crashes mid-sync.
 - rsync version is checked at startup; <3.0.0 emits a warning (Apple ships 2.6.9; suggest `brew install rsync`).
 - Trailing slashes on src/dst matter to rsync — added in `Endpoint.rsync_arg()` so callers pass plain paths.
+- NAS options (`--no-perms`, `--nas-excludes`, `--modify-window`) are off by default. `--no-perms` swaps `-a` for `-rlt` so cross-filesystem syncs (macOS APFS ↔ Synology ext4 ↔ FAT/exFAT) don't churn on permission/owner bits the destination can't represent.
+
+## compare.py
+
+Read-only diff. Runs `rsync -ni --delete` and parses the itemized output: `+++++++++` flags = src-only (new), `*deleting` = dst-only, anything else with a transfer flag (`>`/`<`/`c`) = modified. Imports `parse_endpoint`, `build_ssh_e`, and `NAS_EXCLUDES` from `sync.py` to keep endpoint detection identical. Same-host remote↔remote pairs (e.g. `user@nas:/a` vs `user@nas:/b`) are detected and the rsync runs over a single ssh hop on the remote host — avoids the rsync limitation that bans remote↔remote in normal mode. ANSI color is auto-disabled on non-TTYs and when `NO_COLOR` is set.
 
 ## GUI architecture
 

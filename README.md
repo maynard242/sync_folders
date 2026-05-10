@@ -1,6 +1,6 @@
 # sync_folders
 
-A small, stdlib-only Python wrapper around `rsync` — plus a tkinter GUI front-end. Syncs folder pairs locally or over the network, with a paranoid dry-run default and an end-to-end naming-robustness test suite.
+A small, stdlib-only Python wrapper around `rsync` — plus a tkinter GUI front-end and a read-only directory comparator. Syncs folder pairs locally or over the network, with a paranoid dry-run default and an end-to-end naming-robustness test suite.
 
 ## Why
 
@@ -33,6 +33,10 @@ If you're on macOS, the stock rsync is 2.6.9 (from 2006). Most flags work, but `
 
 # Two-way (newer file wins)
 ./sync.py ./local user@host:/remote --mode two-way --execute
+
+# Sync to a Synology / NAS (skip permissions, ignore @eaDir/.DS_Store, 1s mtime tolerance)
+./sync.py ./Photos user@nas:/volume1/photos --mode mirror --execute \
+    --no-perms --nas-excludes --modify-window 1
 ```
 
 Modes:
@@ -44,6 +48,26 @@ Modes:
 | `two-way` | bidirectional, newer file wins (`rsync --update` in both directions) |
 
 Endpoints can be local paths, `[user@]host:/path` (SSH), or `rsync://...` (rsync daemon). The wrapper auto-adds `--compress` and builds `-e ssh ...` when either side is remote.
+
+NAS-friendly options (off by default to keep behaviour predictable):
+
+| Flag | Effect |
+|---|---|
+| `--no-perms` | Use `-rlt` instead of `-a` — skip permissions/owner/group. Cross-filesystem syncs (macOS ↔ NAS, FAT, exFAT) stop churning on bits the destination can't represent. |
+| `--nas-excludes` | Adds `.DS_Store`, `@eaDir/`, `#recycle/` to excludes. |
+| `--modify-window N` | Tolerate `N`-second mtime drift. `1` is right for FAT/exFAT and most NAS units. |
+| `--exclude PATTERN` | Standard rsync exclude. Repeat for multiple. |
+
+## Usage — Compare
+
+```bash
+./compare.py /path/to/src /path/to/dst                       # local vs local
+./compare.py ./local user@host:/remote                       # local vs SSH
+./compare.py user@host:/a user@host:/b --ssh-key ~/.ssh/id   # remote↔remote on same host (single ssh hop)
+./compare.py ./a ./b --checksum --nas-excludes               # exact compare, ignore NAS noise
+```
+
+Read-only. Reports three categories — `[src only]`, `[dst only]`, `[modified]` — by parsing rsync's `--itemize-changes` output. Defaults to mtime+size; pass `--checksum` for exact-content comparison. `--limit N` caps each category (0 = no limit).
 
 ## Usage — GUI
 
@@ -106,8 +130,9 @@ Builds a torture tree — spaces, mixed case, apostrophes, `& $ # @ ; ,`, `[]{}(
 ## Layout
 
 ```
-sync.py             # CLI, ~230 lines, stdlib only
-gui.py              # tkinter GUI, ~210 lines, stdlib only
+sync.py             # sync CLI, stdlib only
+compare.py          # read-only directory comparator, stdlib only
+gui.py              # tkinter GUI, stdlib only
 tests/test_naming.py
 CLAUDE.md           # design notes for future contributors / Claude Code
 ```

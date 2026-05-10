@@ -33,6 +33,9 @@ from pathlib import Path
 
 MODES = ("mirror", "additive", "two-way")
 
+# Synology / macOS noise that almost everyone wants ignored when syncing to a NAS.
+NAS_EXCLUDES = (".DS_Store", "@eaDir/", "#recycle/")
+
 # user@host:path  OR  host:path  (but not C:\... on Windows-style, and not a URL)
 _SSH_RE = re.compile(r"^(?:[^@/:\s]+@)?[^/:\s]+:(?!//).+$")
 _RSYNCD_RE = re.compile(r"^rsync://")
@@ -103,8 +106,15 @@ def build_rsync(
     compress: bool,
     bwlimit: str | None,
     ssh_e: str | None,
+    excludes: list[str] | None = None,
+    modify_window: int = 0,
+    no_perms: bool = False,
 ) -> list[list[str]]:
-    base = ["rsync", "-a", "--human-readable", "--itemize-changes"]
+    # Default: -a (archive). With --no-perms we drop -p/-o/-g (and the device/special
+    # bits in -D) so cross-filesystem syncs (macOS ↔ NAS, FAT, exFAT) don't churn on
+    # permission/ownership diffs the destination filesystem can't represent anyway.
+    archive = "-a" if not no_perms else "-rlt"
+    base = ["rsync", archive, "--human-readable", "--itemize-changes"]
     if dry_run:
         base.append("--dry-run")
     if compress or src.is_remote or dst.is_remote:
@@ -112,6 +122,10 @@ def build_rsync(
         base.append("--compress")
     if bwlimit:
         base.append(f"--bwlimit={bwlimit}")
+    if modify_window:
+        base.append(f"--modify-window={modify_window}")
+    for exc in excludes or ():
+        base += ["--exclude", exc]
     if ssh_e and (src.is_remote or dst.is_remote):
         base += ["-e", ssh_e]
 
@@ -189,6 +203,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ssh-opts", default=None, help="extra ssh args, quoted (e.g. '-o StrictHostKeyChecking=no')")
     p.add_argument("--compress", action="store_true", help="force --compress even for local syncs")
     p.add_argument("--bwlimit", default=None, help="rsync --bwlimit value, e.g. 10M")
+    p.add_argument("--exclude", action="append", default=[], help="rsync exclude pattern (repeatable)")
+    p.add_argument("--nas-excludes", action="store_true",
+                   help=f"add common NAS/macOS noise: {' '.join(NAS_EXCLUDES)}")
+    p.add_argument("--modify-window", type=int, default=0,
+                   help="seconds of mtime tolerance; use 1 for FAT/exFAT/NAS filesystems")
+    p.add_argument("--no-perms", action="store_true",
+                   help="skip permissions/owner/group (use -rlt instead of -a) — recommended for NAS")
     args = p.parse_args(argv)
 
     ver = rsync_version()
@@ -220,8 +241,15 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     ssh_e = build_ssh_e(args.ssh_port, args.ssh_key, args.ssh_opts)
+    excludes = list(args.exclude)
+    if args.nas_excludes:
+        excludes.extend(NAS_EXCLUDES)
     try:
-        cmds = build_rsync(src, dst, args.mode, dry_run=dry, compress=args.compress, bwlimit=args.bwlimit, ssh_e=ssh_e)
+        cmds = build_rsync(
+            src, dst, args.mode,
+            dry_run=dry, compress=args.compress, bwlimit=args.bwlimit, ssh_e=ssh_e,
+            excludes=excludes, modify_window=args.modify_window, no_perms=args.no_perms,
+        )
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
