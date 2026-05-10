@@ -8,10 +8,11 @@ Endpoints can be local paths or remote specs:
   rsync://user@host:873/module  rsync daemon
 
 Modes:
-  mirror    source -> dest, dest becomes exact copy (--delete)
-  additive  source -> dest, never delete on dest
-  two-way   bidirectional, newer file wins (rsync --update both directions;
-            local <-> remote OK, remote <-> remote not supported by rsync)
+  mirror    Make DST identical to SRC. Deletes anything DST has that SRC doesn't.
+  backup    Copy new/changed from SRC to DST. Never deletes on DST.
+  sync      Bidirectional; newer mtime wins. No deletes.
+            (rsync --update both directions; local <-> remote OK,
+            remote <-> remote not supported by rsync.)
 
 Default is --dry-run. Pass --execute to actually transfer.
 """
@@ -31,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-MODES = ("mirror", "additive", "two-way")
+MODES = ("mirror", "backup", "sync")
 
 # Synology / macOS noise that almost everyone wants ignored when syncing to a NAS.
 NAS_EXCLUDES = (".DS_Store", "@eaDir/", "#recycle/")
@@ -134,11 +135,11 @@ def build_rsync(
 
     if mode == "mirror":
         return [base + ["--delete", s, d]]
-    if mode == "additive":
+    if mode == "backup":
         return [base + [s, d]]
-    if mode == "two-way":
+    if mode == "sync":
         if src.is_remote and dst.is_remote:
-            raise ValueError("two-way sync with both endpoints remote is not supported by rsync")
+            raise ValueError("sync mode with both endpoints remote is not supported by rsync")
         update = base + ["--update"]
         return [update + [s, d], update + [d, s]]
     raise ValueError(f"unknown mode: {mode}")
@@ -195,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("source", help="local path or [user@]host:path or rsync://...")
     p.add_argument("dest", help="local path or [user@]host:path or rsync://...")
-    p.add_argument("--mode", choices=MODES, default="additive")
+    p.add_argument("--mode", choices=MODES, default="backup")
     p.add_argument("--execute", action="store_true", help="actually transfer (default is dry-run)")
     p.add_argument("--log-file", type=Path, default=None)
     p.add_argument("--ssh-port", type=int, default=None)

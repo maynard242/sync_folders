@@ -134,7 +134,7 @@ def test_path_with_spaces(base: Path) -> tuple[bool, str]:
     src.mkdir()
     dst.mkdir()
     (src / "hello world.txt").write_text("hi", encoding="utf-8")
-    rc, out = run_sync(src, dst, "additive", execute=True)
+    rc, out = run_sync(src, dst, "backup", execute=True)
     if rc != 0:
         return False, f"rc={rc}\n{out}"
     target = dst / "hello world.txt"
@@ -157,7 +157,7 @@ def test_dry_run_makes_no_changes(base: Path) -> tuple[bool, str]:
     return True, "dry-run truly is dry"
 
 
-def test_two_way_newer_wins(base: Path) -> tuple[bool, str]:
+def test_sync_newer_wins(base: Path) -> tuple[bool, str]:
     a = base / "a"
     b = base / "b"
     a.mkdir()
@@ -170,24 +170,24 @@ def test_two_way_newer_wins(base: Path) -> tuple[bool, str]:
     os.utime(fa, (1_700_000_000, 1_700_000_000))
     os.utime(fb, (1_700_000_500, 1_700_000_500))
 
-    rc, out = run_sync(a, b, "two-way", execute=True)
+    rc, out = run_sync(a, b, "sync", execute=True)
     if rc != 0:
         return False, f"rc={rc}\n{out}"
     if fa.read_text() != "NEW on B" or fb.read_text() != "NEW on B":
         return False, f"expected both to have 'NEW on B', got A={fa.read_text()!r} B={fb.read_text()!r}"
-    return True, "two-way: newer wins"
+    return True, "sync: newer wins"
 
 
 # ── runner ──────────────────────────────────────────────────────────────
 
 def main() -> int:
     cases: list[tuple[str, callable]] = [
-        ("additive mode (torture tree)", lambda b: test_mode("additive", b)),
+        ("backup mode (torture tree)", lambda b: test_mode("backup", b)),
         ("mirror mode (torture tree)", lambda b: test_mode("mirror", b)),
-        ("two-way mode (torture tree)", lambda b: test_mode("two-way", b)),
+        ("sync mode (torture tree)", lambda b: test_mode("sync", b)),
         ("paths with spaces & caps", test_path_with_spaces),
         ("dry-run safety", test_dry_run_makes_no_changes),
-        ("two-way: newer wins", test_two_way_newer_wins),
+        ("sync: newer wins", test_sync_newer_wins),
     ]
     failures = 0
     for name, fn in cases:

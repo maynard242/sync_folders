@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `sync.py` — a stdlib-only Python rsync wrapper. `compare.py` — a stdlib-only read-only directory comparator built on `rsync --dry-run --itemize-changes`. `gui.py` — a stdlib-only tkinter front-end that subprocesses `sync.py`. `tests/test_naming.py` — end-to-end naming-robustness tests.
 
 Three sync modes:
-- `mirror` — source → dest with `--delete` (dest becomes exact copy)
-- `additive` — source → dest, never delete on dest
-- `two-way` — bidirectional, newer file wins (`rsync --update` run in both directions; local↔remote OK, remote↔remote rejected)
+- `mirror` — make DST identical to SRC; deletes anything DST has that SRC doesn't (`--delete`)
+- `backup` — copy new/changed from SRC to DST; never deletes on DST
+- `sync` — bidirectional, newer mtime wins (`rsync --update` run in both directions; local↔remote OK, remote↔remote rejected)
 
 Endpoints can be local paths, `[user@]host:/path` (SSH), or `rsync://...` (rsync daemon). Detected by regex in `parse_endpoint()`.
 
@@ -18,9 +18,9 @@ Dry-run is the default; `--execute` is required to actually transfer.
 ## Run
 
 ```bash
-./sync.py SRC DST --mode {mirror,additive,two-way}        # dry-run
+./sync.py SRC DST --mode {mirror,backup,sync}             # dry-run
 ./sync.py SRC DST --mode mirror --execute                 # transfer
-./sync.py user@host:/data ./local --mode additive --ssh-port 2222 --ssh-key ~/.ssh/id_ed25519
+./sync.py user@host:/data ./local --mode backup --ssh-port 2222 --ssh-key ~/.ssh/id_ed25519
 ./sync.py ./Photos user@nas:/volume1/photos --mode mirror --execute \
         --no-perms --nas-excludes --modify-window 1       # NAS-safe sync
 ./compare.py SRC DST [--checksum] [--nas-excludes]        # read-only diff
@@ -33,7 +33,7 @@ Default log: `~/Library/Logs/sync_folders/sync.log` on macOS, `$XDG_STATE_HOME/s
 ## Architecture notes
 
 - `build_rsync()` is the only place that knows about modes. To add a mode, return the right list of argv lists from there — everything else is mode-agnostic.
-- `two-way` returns **two** rsync invocations. `--update` (skip-newer) is the conflict policy; there's no state file, so simultaneous edits on both sides will lose the older one silently. Don't promise stronger guarantees without adding state tracking (or swapping in unison).
+- `sync` returns **two** rsync invocations. `--update` (skip-newer) is the conflict policy; there's no state file, so simultaneous edits on both sides will lose the older one silently. Don't promise stronger guarantees without adding state tracking (or swapping in unison).
 - Network: when either endpoint is remote, `--compress` is auto-added and `-e ssh ...` is built from `--ssh-port`/`--ssh-key`/`--ssh-opts`. Local-only syncs skip both unless `--compress` is forced.
 - Output decoding: `subprocess.Popen` uses `errors="replace"`. Apple's stock rsync (2.6.9) emits non-UTF-8 bytes for filenames with emoji/CJK; without this the wrapper crashes mid-sync.
 - rsync version is checked at startup; <3.0.0 emits a warning (Apple ships 2.6.9; suggest `brew install rsync`).

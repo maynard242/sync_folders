@@ -44,7 +44,7 @@ except ImportError as _e:
 
 HERE = Path(__file__).resolve().parent
 SYNC_PY = HERE / "sync.py"
-MODES = ("additive", "mirror", "two-way")
+MODES = ("backup", "mirror", "sync")
 POLL_MS = 80
 
 
@@ -74,7 +74,7 @@ class App:
         self._path_row(frm, 1, "Dest", self.dst_var)
 
         # Mode + execute
-        self.mode_var = tk.StringVar(value="additive")
+        self.mode_var = tk.StringVar(value="backup")
         self.exec_var = tk.BooleanVar(value=False)
         ttk.Label(frm, text="Mode").grid(row=2, column=0, sticky="w", **pad)
         mode_box = ttk.Combobox(frm, textvariable=self.mode_var, values=MODES, state="readonly", width=12)

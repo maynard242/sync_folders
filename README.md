@@ -28,11 +28,11 @@ If you're on macOS, the stock rsync is 2.6.9 (from 2006). Most flags work, but `
 ./sync.py /path/to/src /path/to/dst --mode mirror --execute
 
 # Over SSH
-./sync.py ./local user@host:/remote --mode additive --execute \
+./sync.py ./local user@host:/remote --mode backup --execute \
     --ssh-port 2222 --ssh-key ~/.ssh/id_ed25519 --bwlimit 10M
 
-# Two-way (newer file wins)
-./sync.py ./local user@host:/remote --mode two-way --execute
+# Bidirectional sync (newer file wins)
+./sync.py ./local user@host:/remote --mode sync --execute
 
 # Sync to a Synology / NAS (skip permissions, ignore @eaDir/.DS_Store, 1s mtime tolerance)
 ./sync.py ./Photos user@nas:/volume1/photos --mode mirror --execute \
@@ -43,9 +43,9 @@ Modes:
 
 | Mode | Behaviour |
 |---|---|
-| `mirror` | source → dest, dest becomes exact copy (`rsync --delete`) |
-| `additive` | source → dest, never delete on dest |
-| `two-way` | bidirectional, newer file wins (`rsync --update` in both directions) |
+| `mirror` | Make DST identical to SRC. Deletes anything DST has that SRC doesn't (`rsync --delete`). |
+| `backup` | Copy new/changed from SRC to DST. Never deletes on DST. |
+| `sync` | Bidirectional; newer mtime wins. No deletes (`rsync --update` in both directions). |
 
 Endpoints can be local paths, `[user@]host:/path` (SSH), or `rsync://...` (rsync daemon). The wrapper auto-adds `--compress` and builds `-e ssh ...` when either side is remote.
 
